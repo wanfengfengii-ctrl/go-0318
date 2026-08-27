@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>深海采样器压力舱耐压验证</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.05rem; margin-top: 1.5rem; }
+    button { padding: .45rem .8rem; margin: .2rem .3rem .2rem 0; cursor: pointer; }
+    pre { background: #f4f4f4; padding: 1rem; overflow: auto; border-radius: 6px; font-size: .85rem; white-space: pre-wrap; }
+    .muted { color: #666; }
+    .row { display: flex; flex-wrap: wrap; }
+  </style>
+</head>
+<body>
+  <h1>深海采样器压力舱耐压验证</h1>
+
+  <section>
+    <h2>后端状态</h2>
+    <p id="status" class="muted">连接中…</p>
+  </section>
+
+  <section>
+    <h2>构型冻结</h2>
+    <div class="row">
+      <button id="freeze">提交示例构型并冻结</button>
+      <button id="create-trial">创建试验</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>耐压流程</h2>
+    <div class="row">
+      <button id="startup">原子开试</button>
+      <button id="sample">提交样点</button>
+      <button id="complete-step">完成阶梯1</button>
+      <button id="advance-stage">推进阶段</button>
+      <button id="review">双人复核</button>
+      <button id="finalize">签发准入</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>操作日志</h2>
+    <pre id="log" class="muted">（尚无操作）</pre>
+  </section>
+
+  <section>
+    <h2>实时试验状态</h2>
+    <pre id="trial" class="muted">（尚未创建试验）</pre>
+  </section>
+
+  <script src="main.js"></script>
+</body>
+</html>
