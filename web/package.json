@@ -1,0 +1,13 @@
+{
+  "name": "abyssal-pressure-housing-qualification-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "深海采样器压力舱耐压验证操作前端",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.1"
+  }
+}
