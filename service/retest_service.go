@@ -43,6 +43,13 @@ func (s *Service) ReportAnomaly(ctx context.Context, req ReportAnomalyRequest) (
 	if err != nil {
 		return nil, err
 	}
+	// A trial that has reached a terminal state (admitted, retest, or
+	// terminated) is frozen: a late anomaly report must not rewrite its
+	// retest scope or evidence. Competing terminal outcomes are rejected by
+	// the single-write terminal barrier, so mirror that here.
+	if t.Terminal != trial.TerminalNone {
+		return nil, trial.ErrAlreadyTerminal
+	}
 	snap, err := s.store.GetConfiguration(ctx, t.ConfigDigest)
 	if err != nil {
 		return nil, err
