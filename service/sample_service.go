@@ -209,15 +209,16 @@ func (s *Service) classifyDevice(req SubmitDeviceResultRequest) (string, bool) {
 }
 
 // recordDeviceCall appends a deterministic device retry record with the next
-// retry number and next logical instant.
+// retry number and next logical instant. It uses the caller's context so that a
+// cancelled request aborts persistence before a device-call record (and the
+// retry it would increment) is committed in the background.
 func (s *Service) recordDeviceCall(ctx context.Context, t *trial.Trial, logicalMs int64, reason string) error {
-	persistCtx := context.Background()
-	calls, err := s.store.ListDeviceCalls(persistCtx, t.ID, t.Round)
+	calls, err := s.store.ListDeviceCalls(ctx, t.ID, t.Round)
 	if err != nil {
 		return err
 	}
 	retryNo := len(calls) + 1
-	seq, err := s.store.NextSeq(persistCtx, t.ID)
+	seq, err := s.store.NextSeq(ctx, t.ID)
 	if err != nil {
 		return err
 	}
@@ -227,10 +228,10 @@ func (s *Service) recordDeviceCall(ctx context.Context, t *trial.Trial, logicalM
 		NextLogicalMs: evidence.NextRetryClock(logicalMs),
 		Kind:          "device", Reason: reason,
 	}
-	if err := s.store.AppendDeviceCall(persistCtx, call); err != nil {
+	if err := s.store.AppendDeviceCall(ctx, call); err != nil {
 		return err
 	}
-	return s.appendEvent(persistCtx, t, trial.EventDeviceCall, call)
+	return s.appendEvent(ctx, t, trial.EventDeviceCall, call)
 }
 
 // ListDeviceCalls returns the deterministic retry records for a trial round.
