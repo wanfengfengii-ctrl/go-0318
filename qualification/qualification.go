@@ -25,10 +25,15 @@ type RetestMember struct {
 	CheckType string `json:"check_type"`
 }
 
-// RetestSet is the propagation result of one or more anomalies.
+// RetestSet is the propagation result of one or more anomalies. Version is an
+// optimistic-concurrency token: concurrent anomaly reports each read-modify-write
+// the set, and a save whose Version no longer matches the stored value is
+// rejected as a version conflict so the loser re-reads and re-merges instead of
+// clobbering the winner's scope.
 type RetestSet struct {
 	TrialID string         `json:"trial_id"`
 	Round   int            `json:"round"`
+	Version int64          `json:"version"`
 	Members []RetestMember `json:"members"`
 }
 

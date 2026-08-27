@@ -58,20 +58,36 @@ func (s *Service) ReportAnomaly(ctx context.Context, req ReportAnomalyRequest) (
 	fresh.TrialID = req.TrialID
 	fresh.Round = t.Round
 
-	// Merge with any existing scope for this round so multiple anomalies
-	// accumulate into one canonically ordered set.
-	merged := fresh
-	if existing, err := s.store.GetRetestSet(ctx, req.TrialID, t.Round); err == nil {
-		merged = qualification.MergeRetest(fresh, *existing)
-		merged.TrialID = req.TrialID
-		merged.Round = t.Round
-	} else if !errors.Is(err, store.ErrNotFound) {
-		return nil, err
+	// Read-merge-save under optimistic concurrency. Concurrent anomaly
+	// reports for the same round each re-read the latest scope and fold
+	// their fresh members in; a save that loses the version race is retried
+	// so both anomalies accumulate into one canonically ordered set rather
+	// than the last writer clobbering the earlier scope.
+	var merged qualification.RetestSet
+	saved := false
+	for i := 0; i < 5; i++ {
+		merged = fresh
+		if existing, err := s.store.GetRetestSet(ctx, req.TrialID, t.Round); err == nil {
+			merged = qualification.MergeRetest(fresh, *existing)
+			merged.TrialID = req.TrialID
+			merged.Round = t.Round
+			merged.Version = existing.Version
+		} else if !errors.Is(err, store.ErrNotFound) {
+			return nil, err
+		}
+		if err := s.store.SaveRetestSet(ctx, merged); err == nil {
+			saved = true
+			break
+		} else if !errors.Is(err, store.ErrVersionConflict) {
+			return nil, err
+		}
+		// Lost the race: another anomaly committed a newer version.
+		// Re-read and re-merge, preserving that winner's members.
+	}
+	if !saved {
+		return nil, store.ErrStoreBusy
 	}
 
-	if err := s.store.SaveRetestSet(ctx, merged); err != nil {
-		return nil, err
-	}
 	if err := s.appendEvent(ctx, t, trial.EventRetestReported, merged); err != nil {
 		return nil, err
 	}

@@ -111,6 +111,7 @@ var schema = []string{
 		anomaly_kind TEXT NOT NULL,
 		members_json TEXT NOT NULL,
 		cleared INTEGER NOT NULL DEFAULT 0,
+		version INTEGER NOT NULL DEFAULT 1,
 		PRIMARY KEY (trial_id, round)
 	)`,
 
