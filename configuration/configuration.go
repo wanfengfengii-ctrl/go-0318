@@ -296,7 +296,8 @@ func canonicalise(in Input) *Snapshot {
 	seals := append([]SealBoundary(nil), in.SealBoundaries...)
 	sort.Slice(seals, func(i, j int) bool { return seals[i].ID < seals[j].ID })
 	for i := range seals {
-		checks := seals[i].Checks
+		checks := make([]string, len(seals[i].Checks))
+		copy(checks, seals[i].Checks)
 		sort.Strings(checks)
 		seals[i].Checks = checks
 	}
