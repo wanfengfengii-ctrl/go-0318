@@ -120,7 +120,10 @@ type RestartRoundRequest struct {
 }
 
 // RestartRound starts a new round: the round increments, the stage resets to
-// precheck, and the step ladder restarts. Old rounds stay read-only.
+// precheck, and the step ladder restarts. Old rounds stay read-only. The old
+// round's active bindings and leases are released so the same hardware (pump
+// groups, sensors) can be re-bound and re-leased on the new round; the released
+// rows stay in place as read-only history rather than being deleted.
 func (s *Service) RestartRound(ctx context.Context, req RestartRoundRequest) (*trial.Trial, error) {
 	op, err := operationOf(req)
 	if err != nil {
@@ -135,12 +138,22 @@ func (s *Service) RestartRound(ctx context.Context, req RestartRoundRequest) (*t
 		}
 		return &t, nil
 	}
+	// Capture the round being closed before NewRound increments the counter;
+	// this is the round whose device occupancy must be released.
+	var priorRound int
 	updated, err := s.updateWithEvent(ctx, req.TrialID, func(t *trial.Trial) error {
+		priorRound = t.Round
 		return t.NewRound()
 	}, func(t *trial.Trial) (trial.EventKind, any) {
 		return trial.EventRoundStarted, map[string]any{"round": t.Round}
 	})
 	if err != nil {
+		return nil, err
+	}
+	// Release the closed round's bindings and leases so the operator can
+	// re-open the trial with the same hardware on the new round without
+	// colliding with the still-active old-round occupancy.
+	if err := s.store.ReleaseRound(ctx, req.TrialID, priorRound); err != nil {
 		return nil, err
 	}
 	if err := s.saveIdem(ctx, op, 200, updated); err != nil {

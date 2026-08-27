@@ -47,6 +47,7 @@ type Store interface {
 	NextSeq(ctx context.Context, trialID string) (int64, error)
 
 	Startup(ctx context.Context, trialID string, round int, bindings []trial.Binding, leases []trial.Lease) error
+	ReleaseRound(ctx context.Context, trialID string, round int) error
 	RenewLease(ctx context.Context, trialID, resourceID, holder, token string, newExpiry int64) error
 	ListLeases(ctx context.Context, trialID string, round int) ([]trial.Lease, error)
 	ListBindings(ctx context.Context, trialID string, round int) ([]trial.Binding, error)

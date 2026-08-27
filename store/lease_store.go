@@ -43,6 +43,38 @@ func (s *SQLite) Startup(ctx context.Context, trialID string, round int, binding
 	})
 }
 
+// ReleaseRound deactivates every active binding and lease still held by the
+// given trial round. It marks the rows inactive rather than deleting them so
+// the append-only history of past rounds survives reassembly: the old round's
+// evidence, leases, and bindings remain read-only. This clears the unique
+// active serial/position/resource occupancy so the same hardware can be bound
+// and leased again on the new round.
+func (s *SQLite) ReleaseRound(ctx context.Context, trialID string, round int) error {
+	return withRetry(func() error {
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("begin: %w", err)
+		}
+		defer tx.Rollback()
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE bindings SET active = 0 WHERE trial_id = ? AND round = ? AND active = 1`,
+			trialID, round,
+		); err != nil {
+			return fmt.Errorf("release bindings: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE leases SET active = 0 WHERE trial_id = ? AND round = ? AND active = 1`,
+			trialID, round,
+		); err != nil {
+			return fmt.Errorf("release leases: %w", err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit: %w", err)
+		}
+		return nil
+	})
+}
+
 // RenewLease extends an active lease's expiry only when the holder and token
 // still match, keeping the lease from being hijacked.
 func (s *SQLite) RenewLease(ctx context.Context, trialID, resourceID, holder, token string, newExpiry int64) error {
