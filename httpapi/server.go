@@ -5,7 +5,9 @@
 package httpapi
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -68,6 +70,27 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // when the body is malformed.
 func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
+		writeError(w, CodeInvalidConfiguration, http.StatusBadRequest, "malformed request body")
+		return false
+	}
+	return true
+}
+
+// decodeOptional decodes a JSON request body into v when one is present. An
+// empty or absent body leaves v untouched so endpoints whose required fields
+// live in the path still accept bodyless calls; only a present-but-malformed
+// body is rejected. This lets path-parameterised writes carry an op_no for
+// idempotent retries without forcing clients to send a body.
+func decodeOptional(w http.ResponseWriter, r *http.Request, v any) bool {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		writeError(w, CodeInvalidConfiguration, http.StatusBadRequest, "could not read request body")
+		return false
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return true
+	}
+	if err := json.Unmarshal(body, v); err != nil {
 		writeError(w, CodeInvalidConfiguration, http.StatusBadRequest, "malformed request body")
 		return false
 	}

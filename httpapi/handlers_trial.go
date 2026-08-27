@@ -69,7 +69,12 @@ func (s *Server) handleRenewLease(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdvanceStage(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	stage := r.PathValue("stage")
-	req := service.StageRequest{TrialID: id, Stage: stage}
+	var req service.StageRequest
+	if !decodeOptional(w, r, &req) {
+		return
+	}
+	req.TrialID = id
+	req.Stage = stage
 	t, err := s.svc.AdvanceStage(r.Context(), req)
 	if err != nil {
 		writeDomainError(w, err)
