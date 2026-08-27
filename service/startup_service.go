@@ -26,6 +26,15 @@ var ErrStartupConflict = errors.New("startup conflict")
 // succeeds or the whole operation rolls back; a competing startup for the same
 // resource or position fails without leaving partial bindings behind.
 func (s *Service) Startup(ctx context.Context, req StartupRequest) error {
+	// The bindings and leases form an order-independent resource set: a mobile
+	// client that disconnects and re-sends the same op_no may present the
+	// arrays in a different order. Canonicalise the set before deriving the
+	// idempotency digest so a reordered retry is recognised as a duplicate
+	// rather than flagged as an idempotency conflict. The canonical order also
+	// flows into the single-transaction check-and-write below (rule 5).
+	req.Bindings = trial.SortBindings(req.Bindings)
+	req.Leases = trial.SortLeases(req.Leases)
+
 	op, err := operationOf(req)
 	if err != nil {
 		return err

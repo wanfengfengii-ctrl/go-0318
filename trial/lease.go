@@ -1,6 +1,9 @@
 package trial
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // ComponentType classifies a physical component bound to an install position.
 type ComponentType string
@@ -48,4 +51,40 @@ func (l Lease) Expired(nowMs int64) bool { return nowMs >= l.ExpiresAt }
 // String renders a stable lease identity for error reporting.
 func (l Lease) String() string {
 	return fmt.Sprintf("%s/%s/%s", l.TrialID, l.ResourceID, l.Token)
+}
+
+// leaseIdentityKey is the canonical sort key for a lease as a set element: the
+// resource alone identifies the requested grant, so a retry that reorders the
+// leases array still matches the original request.
+func leaseIdentityKey(l Lease) string { return l.ResourceID }
+
+// SortLeases reorders a copy of leases by resource id, the canonical identity
+// of a lease request. The resource set of a startup is order-independent, so
+// sorting before the digest lets a reordered retry be recognised as a
+// duplicate instead of an idempotency conflict.
+func SortLeases(leases []Lease) []Lease {
+	out := make([]Lease, len(leases))
+	copy(out, leases)
+	sort.SliceStable(out, func(i, j int) bool {
+		return leaseIdentityKey(out[i]) < leaseIdentityKey(out[j])
+	})
+	return out
+}
+
+// bindingIdentityKey is the canonical sort key for a binding as a set element:
+// a serial is bound to exactly one position, so (serial, position) identifies
+// the binding regardless of array order.
+func bindingIdentityKey(b Binding) string { return b.Serial + "\x00" + b.Position }
+
+// SortBindings reorders a copy of bindings by serial then position, the
+// canonical identity of a binding. The binding set of a startup is
+// order-independent, so sorting before the digest lets a reordered retry be
+// recognised as a duplicate.
+func SortBindings(bindings []Binding) []Binding {
+	out := make([]Binding, len(bindings))
+	copy(out, bindings)
+	sort.SliceStable(out, func(i, j int) bool {
+		return bindingIdentityKey(out[i]) < bindingIdentityKey(out[j])
+	})
+	return out
 }
