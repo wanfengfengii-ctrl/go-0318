@@ -137,14 +137,24 @@ func (s *Service) SubmitDeviceResult(ctx context.Context, req SubmitDeviceResult
 	}
 
 	// Classify the result. Any failure path produces a device call, not evidence.
+	// The call record is itself part of the evidence chain, so the completed
+	// failure is recorded for idempotency: an identical retry with the same
+	// operation number must replay as a no-op instead of appending a second
+	// retry record.
 	if reason, failed := s.classifyDevice(req); failed {
-		return s.recordDeviceCall(ctx, t, req.LogicalMs, reason)
+		if err := s.recordDeviceCall(ctx, t, req.LogicalMs, reason); err != nil {
+			return err
+		}
+		return s.saveIdem(ctx, op, 200, map[string]bool{"ok": true})
 	}
 	if req.Kind == "sample" {
 		if stale, err := s.calibrationStale(ctx, t, req.Channel, req.LogicalMs); err != nil {
 			return err
 		} else if stale {
-			return s.recordDeviceCall(ctx, t, req.LogicalMs, "calibration_stale")
+			if err := s.recordDeviceCall(ctx, t, req.LogicalMs, "calibration_stale"); err != nil {
+				return err
+			}
+			return s.saveIdem(ctx, op, 200, map[string]bool{"ok": true})
 		}
 	}
 
@@ -171,7 +181,10 @@ func (s *Service) SubmitDeviceResult(ctx context.Context, req SubmitDeviceResult
 		}
 		return s.saveIdem(ctx, op, 200, v)
 	default:
-		return s.recordDeviceCall(ctx, t, req.LogicalMs, "format_error")
+		if err := s.recordDeviceCall(ctx, t, req.LogicalMs, "format_error"); err != nil {
+			return err
+		}
+		return s.saveIdem(ctx, op, 200, map[string]bool{"ok": true})
 	}
 }
 
